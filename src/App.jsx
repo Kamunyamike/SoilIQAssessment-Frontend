@@ -602,10 +602,11 @@ function App() {
       textInput = `Visual assessment of crop field. Symptoms observed: ${symptoms.filter((s)=>s!=='none').join(', ')}`;
     }
 
+    const jitter = () => (Math.random() - 0.5) * 0.02; // +/- 2km spread fallback
     const payload = {
       phone,
-      latitude: location.lat || -0.303,
-      longitude: location.lng || 36.080,
+      latitude: location.lat || (-0.303 + jitter()),
+      longitude: location.lng || (36.080 + jitter()),
       crop,
       ph_reading: phReading ? String(phReading) : 'unknown',
       visual_symptoms: symptoms.filter((s) => s !== 'none'),
@@ -679,9 +680,10 @@ function App() {
       "Meru": { lat: 0.046, lng: 37.656 }
     };
     const pt = coords[countyName] || coords["Nakuru"];
+    const jitter = () => (Math.random() - 0.5) * 0.03; // +/- 3km spread to scatter farm pins
     setLocation({
-      lat: pt.lat,
-      lng: pt.lng,
+      lat: pt.lat + jitter(),
+      lng: pt.lng + jitter(),
       county: countyName,
       accuracy: 100,
       state: 'success'
