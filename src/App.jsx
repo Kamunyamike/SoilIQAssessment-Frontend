@@ -3,7 +3,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // Compatibility assertions for app.test.js:
 // Get soil advice | Read aloud | Soil trends | Assessment history | Help | reverseGeocodeLocation | image-analysis
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://kenya-ai-challenge-1.onrender.com').replace(/\/+$/, '');
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '');
+  }
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  return isLocal ? 'http://localhost:8080' : 'https://kenya-ai-challenge-1.onrender.com';
+};
+const API_BASE = getApiBase();
 const STORAGE_KEY = 'soiliq-history';
 
 const defaultSymptoms = [
