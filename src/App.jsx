@@ -178,8 +178,9 @@ function App() {
         if (res.ok) {
           const data = await res.json();
           const addr = data.address || {};
-          const county = addr.county || addr.state || addr.city || addr.town || addr.region || 'Nakuru';
-          setLocation((prev) => ({ ...prev, county: county.replace(/ County$/i, '') }));
+          // Kenya-specific: Nairobi has no 'county' field in OSM; try state_district, city, state first
+          const county = addr.county || addr.state_district || addr.city || addr.state || addr.town || addr.region || 'Nakuru';
+          setLocation((prev) => ({ ...prev, county: county.replace(/ County$/i, '').replace(/ City$/i, '') }));
         } else {
           setLocation((prev) => ({ ...prev, county: 'Nakuru' }));
         }
