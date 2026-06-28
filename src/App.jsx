@@ -7,13 +7,13 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://kenya-ai-challen
 const STORAGE_KEY = 'soiliq-history';
 
 const defaultSymptoms = [
-  { key: 'pale_yellow_leaves', label: '🟡 Majani meupe/njano', sub: 'Pale/yellow leaves' },
-  { key: 'hard_crusty_surface', label: '🟤 Udongo mgumu', sub: 'Hard crusty surface' },
-  { key: 'stunted_growth', label: '🌱 Mimea mifupi', sub: 'Stunted growth' },
-  { key: 'very_dry_soil', label: '💧 Udongo mkavu sana', sub: 'Very dry soil' },
-  { key: 'wilting_browning', label: '🍂 Majani yaliyogeuka', sub: 'Wilting/browning' },
-  { key: 'visible_pests', label: '🐛 Wadudu wengi', sub: 'Visible pests' },
-  { key: 'none', label: '❌ Hakuna dalili', sub: 'No visible symptoms' }
+  { key: 'pale_yellow_leaves', label: '🟡 Pale / Yellow Leaves', sub: 'Nitrogen or iron deficiency' },
+  { key: 'hard_crusty_surface', label: '🟤 Hard Crusty Surface', sub: 'Soil compaction / low organic matter' },
+  { key: 'stunted_growth', label: '🌱 Stunted Growth', sub: 'Nutrient lockup or acidity' },
+  { key: 'very_dry_soil', label: '💧 Very Dry Soil', sub: 'Moisture stress' },
+  { key: 'wilting_browning', label: '🍂 Wilting / Browning', sub: 'Disease or water stress' },
+  { key: 'visible_pests', label: '🐛 Visible Pests', sub: 'Insect damage' },
+  { key: 'none', label: '❌ No Visible Symptoms', sub: 'Field looks healthy' }
 ];
 
 const TRANSCRIBE_ENDPOINTS = [...new Set([
@@ -64,6 +64,7 @@ function App() {
   // Settings/Modals
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
+  const [showPatterns, setShowPatterns] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [appInitLoading, setAppInitLoading] = useState(true);
 
@@ -97,7 +98,7 @@ function App() {
   // Fetch initial health check & data loads
   useEffect(() => {
     const checkHealthAndLoad = async () => {
-      const nowStr = new Date().toLocaleTimeString('sw-KE', { hour: '2-digit', minute: '2-digit' });
+      const nowStr = new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
       setLastServerCheck(nowStr);
       try {
         const healthRes = await fetchWithTimeout(`${API_BASE}/health`);
@@ -107,15 +108,15 @@ function App() {
             setServerHealthy(true);
           } else {
             setServerHealthy(false);
-            showToast('Seva iko mbali — data iliyohifadhiwa inaonyeshwa', 'error');
+            showToast('Server offline — showing cached data', 'error');
           }
         } else {
           setServerHealthy(false);
-          showToast('Seva iko mbali — data iliyohifadhiwa inaonyeshwa', 'error');
+          showToast('Server offline — showing cached data', 'error');
         }
       } catch {
         setServerHealthy(false);
-        showToast('Seva iko mbali — data iliyohifadhiwa inaonyeshwa', 'error');
+        showToast('Server offline — showing cached data', 'error');
       }
 
       // Load assessments
@@ -161,7 +162,7 @@ function App() {
         lng: longitude,
         accuracy,
         state: 'success',
-        county: 'Inatafuta kaunti...'
+        county: 'Locating county...'
       });
 
       // Reverse geocode via OpenStreetMap Nominatim
@@ -258,10 +259,16 @@ function App() {
           }).addTo(mapInstance);
           mapRef.current = mapInstance;
           markersGroupRef.current = L.layerGroup().addTo(mapInstance);
+          setTimeout(() => {
+            mapInstance.invalidateSize();
+          }, 100);
         } else {
           if (location.lat && location.lng) {
             mapRef.current.setView([location.lat, location.lng]);
           }
+          setTimeout(() => {
+            mapRef.current?.invalidateSize();
+          }, 100);
         }
 
         // Draw user location pin
@@ -277,7 +284,7 @@ function App() {
               opacity: 1,
               fillOpacity: 0.9
             }).addTo(mapRef.current);
-            userMarkerRef.current.bindPopup("<b>Uko Hapa</b><br>Mahali pako pa sasa");
+            userMarkerRef.current.bindPopup("<b>You Are Here</b><br>Your current location");
           }
         }
 
@@ -303,27 +310,27 @@ function App() {
             });
 
             const scoreVal = props.soil_health_score || 0;
-            const urgencyText = urgency === 'high' ? '🚨 Haraka' : (urgency === 'medium' ? '⏳ Muhimu' : '✅ Nzuri');
+            const urgencyText = urgency === 'high' ? '🚨 Urgent' : (urgency === 'medium' ? '⏳ Important' : '✅ Good');
             const summarySnippet = props.farmer_summary_sw 
               ? (props.farmer_summary_sw.length > 80 ? props.farmer_summary_sw.slice(0, 80) + '...' : props.farmer_summary_sw)
-              : 'Ushauri wa udongo';
-            const dateStr = props.created_at ? new Date(props.created_at).toLocaleDateString('sw-KE', { month: 'short', day: 'numeric' }) : 'Leo';
+              : 'Soil advisory';
+            const dateStr = props.created_at ? new Date(props.created_at).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' }) : 'Today';
 
             const popupContent = document.createElement('div');
             popupContent.className = 'custom-popup-card';
             popupContent.innerHTML = `
-              <h5>${props.crop === 'maize' ? '🌽 Mahindi' : (props.crop === 'wheat' ? '🌾 Ngano' : (props.crop === 'barley' ? '🌾 Shayiri' : '🌿 Nyingine'))} • ${props.county || 'Nakuru'}</h5>
+              <h5>${props.crop === 'maize' ? '🌽 Maize' : (props.crop === 'wheat' ? '🌾 Wheat' : (props.crop === 'barley' ? '🌾 Barley' : '🌿 Other'))} • ${props.county || 'Nakuru'}</h5>
               <div style="font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: space-between;">
-                <span>Afya: ${scoreVal}/10</span>
+                <span>Health: ${scoreVal}/10</span>
                 <span style="color: ${urgency === 'high' ? '#DC2626' : (urgency === 'medium' ? '#D97706' : '#16A34A')}">${urgencyText}</span>
               </div>
               <div class="score-bar">
                 <div class="score-fill ${urgency}" style="width: ${scoreVal * 10}%"></div>
               </div>
               <p class="farmer-quote">"${summarySnippet}"</p>
-              <div style="font-size: 12px; color: #333; margin-top: 4px; font-weight: 600;">Chokaa: ${props.lime_kg_acre || 0} kg/ekari</div>
+              <div style="font-size: 12px; color: #333; margin-top: 4px; font-weight: 600;">Lime: ${props.lime_kg_acre || 0} kg/acre</div>
               <div style="font-size: 11px; color: #666; margin-top: 2px;">${dateStr}</div>
-              <a href="#" class="redirect-link" style="font-weight: 700; color: var(--green); font-size: 13px; text-decoration: none; margin-top: 6px; display: inline-block;">Ona Ripoti Kamili →</a>
+              <a href="#" class="redirect-link" style="font-weight: 700; color: var(--green); font-size: 13px; text-decoration: none; margin-top: 6px; display: inline-block;">View Full Report →</a>
             `;
 
             marker.bindPopup(popupContent);
@@ -453,13 +460,13 @@ function App() {
       } catch (err) {
         setVoiceMode('done');
         setTranscription('');
-        showToast('Haikuweza kusikia. Andika kwa fomu.', 'error');
+        showToast('Could not hear audio. Try typing in the form instead.', 'error');
       }
       return;
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showToast('Kifaa chako hakiauni kinasa sauti.', 'error');
+      showToast('Your device does not support audio recording.', 'error');
       return;
     }
 
@@ -493,7 +500,7 @@ function App() {
       startRecordingTimer();
       setVoiceMode('recording');
     } catch {
-      showToast('Tafadhali ruhusu matumizi ya maikrofoni.', 'error');
+      showToast('Please allow microphone access to record voice notes.', 'error');
     }
   };
 
@@ -525,7 +532,7 @@ function App() {
           if (text.trim()) {
             setTranscription(text.trim());
             setVoiceMode('done');
-            showToast('Sauti imetafsiriwa!', 'success');
+            showToast('Voice note transcribed!', 'success');
             return;
           }
         }
@@ -563,7 +570,7 @@ function App() {
           const data = await response.json();
           const details = data.analysis || data.result || data.message || 'Image analysis completed.';
           setImageAnalysis(details);
-          showToast('Mchanganuo wa picha umepokelewa', 'success');
+          showToast('Image analysis complete', 'success');
           setImageAnalyzing(false);
           return;
         }
@@ -575,9 +582,9 @@ function App() {
 
     // Local Mock Fallback if endpoint is unreachable
     setTimeout(() => {
-      const mockResult = `Visual analysis of the ${crop} photo in ${location.county || 'Nakuru'} indicates mild foliar chlorosis (yellowing) and soil crusting. This matches typical local nitrogen leaching patterns. Advise applying composted samadi (manure) and monitoring pH closely.`;
+      const mockResult = `Visual analysis of the ${crop} photo in ${location.county || 'Nakuru'} indicates mild foliar chlorosis (yellowing) and soil crusting. This matches typical local nitrogen leaching patterns. Advise applying composted manure and monitoring pH closely.`;
       setImageAnalysis(mockResult);
-      showToast('Mchanganuo wa picha umekamilika (Njia mbadala)', 'success');
+      showToast('Image analysis complete (offline fallback)', 'success');
       setImageAnalyzing(false);
     }, 1500);
   };
@@ -638,7 +645,7 @@ function App() {
             soil_health_score: result.recommendation?.soil_health_score || 5,
             urgency: result.recommendation?.urgency || 'medium',
             lime_kg_acre: result.recommendation?.lime_kg_acre || 0,
-            farmer_summary_sw: result.recommendation?.farmer_summary_sw || 'Ushauri wa udongo',
+            farmer_summary_sw: result.recommendation?.farmer_summary_sw || 'Soil advisory',
             season_label: result.season_label || 'Long Rains',
             input_method: 'web',
             created_at: result.created_at || new Date().toISOString()
@@ -648,13 +655,13 @@ function App() {
         const updated = [...assessments, newFeature];
         setAssessments(updated);
         saveCachedAssessments(updated);
-        showToast('Ushauri umepokelewa!', 'success');
+        showToast('Assessment complete!', 'success');
       } else {
         throw new Error('Assessment failed');
       }
     } catch {
       setSubmitError(true);
-      showToast('Samahani, kuna tatizo. Jaribu tena.', 'error');
+      showToast('Something went wrong. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -680,7 +687,7 @@ function App() {
       state: 'success'
     });
     setShowLocationModal(false);
-    showToast(`Mahali pamewekwa: ${countyName}`, 'success');
+    showToast(`Location set: ${countyName}`, 'success');
   };
 
   // Text-To-Speech Swahili synthesis
@@ -715,7 +722,7 @@ function App() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'SoilIQ - Ushauri wa Udongo',
+          title: 'SoilIQ - Soil Advisory',
           text: text
         });
         return;
@@ -728,9 +735,9 @@ function App() {
     if (navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(text);
-        showToast('Imenakiliwa!', 'success');
+        showToast('Copied to clipboard!', 'success');
       } catch {
-        showToast('Haikuweza kunakili.', 'error');
+        showToast('Could not copy to clipboard.', 'error');
       }
     }
   };
@@ -766,15 +773,15 @@ function App() {
   // UI rendering sub-methods
   const renderHeader = () => {
     let gpsStatusIcon = '🟡';
-    let gpsText = 'Inatafuta mahali...';
+    let gpsText = 'Locating...';
     let clickHandler = () => {};
 
     if (location.state === 'success') {
       gpsStatusIcon = '🟢';
-      gpsText = location.county || 'Mkoa wa Nakuru';
+      gpsText = location.county || 'Nakuru';
     } else if (location.state === 'failed') {
       gpsStatusIcon = '🔴';
-      gpsText = 'Weka mahali';
+      gpsText = 'Set Location';
       clickHandler = () => setShowLocationModal(true);
     }
 
@@ -795,7 +802,7 @@ function App() {
   const renderLocationModal = () => (
     <div className="sheet-overlay" style={{ justifyContent: 'center', alignItems: 'center' }}>
       <div className="sheet" style={{ maxWidth: '400px', borderRadius: '16px', maxHeight: '80vh' }}>
-        <h4 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px', color: 'var(--soil)' }}>Chagua Eneo la Shamba</h4>
+        <h4 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px', color: 'var(--soil)' }}>Select Farm Location</h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {["Nakuru", "Uasin Gishu", "Trans Nzoia", "Bungoma", "Kakamega", "Nyeri", "Kiambu", "Meru"].map((cName) => (
             <button
@@ -811,7 +818,7 @@ function App() {
               }}
               onClick={() => handleManualLocation(cName)}
             >
-              📍 Eneo la {cName}
+              📍 {cName} County
             </button>
           ))}
         </div>
@@ -819,7 +826,7 @@ function App() {
           style={{ width: '100%', minHeight: '56px', marginTop: '16px', borderRadius: '12px', backgroundColor: '#E5E7EB', fontWeight: '700' }}
           onClick={() => setShowLocationModal(false)}
         >
-          Funga
+          Close
         </button>
       </div>
     </div>
@@ -829,11 +836,11 @@ function App() {
     if (!val) return '';
     const num = parseFloat(val);
     if (isNaN(num)) return '';
-    if (num < 5.0) return { badge: '🔴 Asidi kali sana (Very acidic)', style: 'v-acidic' };
-    if (num < 5.5) return { badge: '🟠 Asidi (Acidic) — Chokaa inahitajika', style: 'acidic' };
-    if (num <= 6.5) return { badge: '🟡 Karibu kawaida (Near neutral)', style: 'neutral' };
-    if (num <= 7.5) return { badge: '🟢 Nzuri (Good)', style: 'good' };
-    return { badge: '🔵 Alkali nyingi (Too alkaline)', style: 'alkaline' };
+    if (num < 5.0) return { badge: '🔴 Very Acidic — Urgent liming required', style: 'v-acidic' };
+    if (num < 5.5) return { badge: '🟠 Acidic — Lime recommended', style: 'acidic' };
+    if (num <= 6.5) return { badge: '🟡 Near Neutral — Acceptable', style: 'neutral' };
+    if (num <= 7.5) return { badge: '🟢 Good pH — Ideal for most crops', style: 'good' };
+    return { badge: '🔵 Too Alkaline — Check irrigation water', style: 'alkaline' };
   };
 
   const currentPHLabel = getPHLabel(phReading);
@@ -847,7 +854,7 @@ function App() {
             <span className="icon">🌱</span>
             <h1>SoilIQ</h1>
           </div>
-          <p>Akili ya Udongo kwa Mkulima wa Kenya</p>
+          <p>Soil Intelligence for Kenyan Extension Workers</p>
         </div>
       )}
 
@@ -855,10 +862,10 @@ function App() {
         <>
           {/* Offline Warning Banner */}
           {!isOnline && (
-            <div className="banner">📡 Huna Mtandao — Data ya Mwisho Inaonyeshwa</div>
+            <div className="banner">📡 No Internet — Showing Cached Data</div>
           )}
           {isOnline && !serverHealthy && (
-            <div className="banner">⚠️ Seva iko mbali — data iliyohifadhiwa inaonyeshwa</div>
+            <div className="banner">⚠️ Server offline — showing cached data</div>
           )}
 
           {/* Screen Container */}
@@ -873,17 +880,14 @@ function App() {
                     <div className="info-card-header">
                       <span>🗺️ {graphContext.zone || 'Central Rift Highlands'} · {location.county || 'Nakuru'}</span>
                       <button className="toggle-btn" onClick={() => setGraphCollapsed(!graphCollapsed)}>
-                        {graphCollapsed ? 'Onyesha ▼' : 'Ficha ▲'}
+                        {graphCollapsed ? 'Show ▼' : 'Hide ▲'}
                       </button>
                     </div>
                     {!graphCollapsed && (
                       <div className="info-card-body">
                         <div className="soil-type">{graphContext.soil_type || 'Humic Nitisols'}</div>
                         <div className="pH-range">
-                          pH ya kawaida: {graphContext.zone_ph_min || 4.6} – {graphContext.zone_ph_max || 5.4}
-                          <span style={{ fontSize: '13px', fontWeight: '400', display: 'block' }}>
-                            (Typical zone pH: {graphContext.zone_ph_min || 4.6} – {graphContext.zone_ph_max || 5.4})
-                          </span>
+                          Typical zone pH: {graphContext.zone_ph_min || 4.6} – {graphContext.zone_ph_max || 5.4}
                         </div>
                         <div className="issue-row">
                           {(graphContext.known_issues || []).map((issue, idx) => (
@@ -893,10 +897,7 @@ function App() {
                           ))}
                         </div>
                         <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--soil)' }}>
-                          🌾 {graphContext.farms_assessed_nearby || 12} mashamba yaliyotathiminiwa karibu
-                          <span style={{ fontSize: '12px', fontWeight: '400', display: 'block', color: '#555' }}>
-                            ({graphContext.farms_assessed_nearby || 12} farms assessed nearby)
-                          </span>
+                          🌾 {graphContext.farms_assessed_nearby || 12} farms assessed nearby
                         </div>
                       </div>
                     )}
@@ -906,21 +907,21 @@ function App() {
                 {/* Input Mode Selector */}
                 <div className="mode-row">
                   <button className={`mode-pill ${mode === 'voice' ? 'active' : ''}`} onClick={() => setMode('voice')}>
-                    🎤 Sauti
+                    🎤 Voice
                   </button>
                   <button className={`mode-pill ${mode === 'image' ? 'active' : ''}`} onClick={() => setMode('image')}>
-                    📷 Picha
+                    📷 Photo
                   </button>
                   <button className={`mode-pill ${mode === 'form' ? 'active' : ''}`} onClick={() => setMode('form')}>
-                    ✏️ Fomu
+                    ✏️ Form
                   </button>
                 </div>
 
                 {/* MODE A: VOICE */}
                 {mode === 'voice' && (
                   <div className="voice-area">
-                    <p className="instruction">Eleza unachokiona shambani</p>
-                    <p className="subtitle">Unaweza kuzungumza kwa Kiswahili au Kikuyu</p>
+                    <p className="instruction">Describe what you see in the field</p>
+                    <p className="subtitle">Speak in English, Swahili, or Kikuyu</p>
                     
                     <div className="mic-container">
                       {voiceMode === 'recording' && (
@@ -951,22 +952,22 @@ function App() {
                       <div className="timer">0:{String(recordingSeconds).padStart(2, '0')}</div>
                     )}
                     {voiceMode === 'processing' && (
-                      <div className="status-text">Inasikia... (Listening...)</div>
+                      <div className="status-text">Listening...</div>
                     )}
 
                     {(voiceMode === 'done' || transcription) && (
                       <div className="transcript-card">
-                        <div className="card-title">📝 Ulichosema:</div>
+                        <div className="card-title">📝 You said:</div>
                         <p>{transcription}</p>
                         <button className="edit-btn" onClick={() => setVoiceMode('edit')}>
-                          ✏️ Hariri (Edit)
+                          ✏️ Edit
                         </button>
                       </div>
                     )}
 
                     {voiceMode === 'edit' && (
                       <div className="transcript-card">
-                        <div className="card-title">📝 Andika/Hariri hapa:</div>
+                        <div className="card-title">📝 Type or edit here:</div>
                         <textarea 
                           value={transcription} 
                           onChange={(e) => setTranscription(e.target.value)}
@@ -976,7 +977,7 @@ function App() {
                           style={{ marginTop: '12px', backgroundColor: 'var(--green)', color: 'white', borderColor: 'var(--green)' }} 
                           onClick={() => setVoiceMode('done')}
                         >
-                          Hifadhi
+                          Save
                         </button>
                       </div>
                     )}
@@ -1002,9 +1003,9 @@ function App() {
                         }}
                       />
                       <span className="icon">📷</span>
-                      <strong>Piga Picha ya Shamba</strong>
-                      <span>Take a photo of the field</span>
-                      <small style={{ fontSize: '12px', opacity: 0.8 }}>Bonyeza hapa → kamera itafunguka</small>
+                      <strong>Take a Field Photo</strong>
+                      <span>Open camera to capture the field</span>
+                      <small style={{ fontSize: '12px', opacity: 0.8 }}>Tap here → camera will open</small>
                     </label>
 
                     <label className="upload-card gallery">
@@ -1022,40 +1023,37 @@ function App() {
                         }}
                       />
                       <span className="icon">🖼️</span>
-                      <strong>Pakia Picha</strong>
-                      <span>Upload from gallery</span>
-                      <small style={{ fontSize: '12px', opacity: 0.8 }}>Chagua picha kutoka kwenye simu yako</small>
+                      <strong>Upload from Gallery</strong>
+                      <span>Choose a photo from your phone</span>
+                      <small style={{ fontSize: '12px', opacity: 0.8 }}>Select image from device storage</small>
                     </label>
 
                     {selectedImage && (
                       <div className="preview-container">
                         <img src={selectedImage} alt="Preview" />
-                        <div className="badge">✓ Picha imechaguliwa</div>
+                        <div className="badge">✓ Photo selected</div>
                       </div>
                     )}
 
                     {imageAnalyzing && (
                       <div className="transcript-card">
-                        <div className="card-title">🤖 Inachambua picha...</div>
+                        <div className="card-title">🤖 Analyzing photo...</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div className="spinner" style={{ borderTopColor: 'var(--green)' }} />
-                          <span>AI inachambua rangi na hali ya udongo...</span>
+                          <span>AI is analyzing soil color and field condition...</span>
                         </div>
                       </div>
                     )}
 
                     {imageAnalysis && !imageAnalyzing && (
                       <div className="transcript-card">
-                        <div className="card-title">📷 Mchanganuo wa Picha:</div>
+                        <div className="card-title">📷 Image Analysis:</div>
                         <p>{imageAnalysis}</p>
                       </div>
                     )}
 
                     <p className="note">
-                      * Picha itatumika kwa muktadha — AI inachambua rangi na hali ya udongo
-                      <span style={{ fontSize: '12px', display: 'block', fontWeight: '400', marginTop: '2px' }}>
-                        (Photo used for context — AI analyzes soil color and condition)
-                      </span>
+                      * Photo is used as context — AI analyzes soil color and field condition
                     </p>
                   </div>
                 )}
@@ -1065,13 +1063,13 @@ function App() {
                   <div className="form-area">
                     {/* Crop Grid */}
                     <div className="section">
-                      <label className="section-label">Zao (Crop)</label>
+                      <label className="section-label">Crop</label>
                       <div className="pill-grid">
                         {[
-                          { key: 'maize', icon: '🌽', label: 'Mahindi' },
-                          { key: 'wheat', icon: '🌾', label: 'Ngano' },
-                          { key: 'barley', icon: '🌾', label: 'Shayiri' },
-                          { key: 'other', icon: '🌿', label: 'Nyingine' }
+                          { key: 'maize', icon: '🌽', label: 'Maize' },
+                          { key: 'wheat', icon: '🌾', label: 'Wheat' },
+                          { key: 'barley', icon: '🌾', label: 'Barley' },
+                          { key: 'other', icon: '🌿', label: 'Other' }
                         ].map((item) => (
                           <button
                             key={item.key}
@@ -1087,8 +1085,8 @@ function App() {
                     {/* pH Input */}
                     <div className="section">
                       <label className="section-label">
-                        pH ya Udongo
-                        <small>Ikiwa una kipimo — ikiwa huna, ruka (If you have a reading — if not, skip)</small>
+                        Soil pH Reading
+                        <small>Optional — skip if you don't have a meter reading</small>
                       </label>
                       <div className="ph-input-container">
                         <input
@@ -1098,7 +1096,7 @@ function App() {
                           step="0.1"
                           value={phReading}
                           onChange={(e) => setPhReading(e.target.value)}
-                          placeholder="mfano: 5.1"
+                          placeholder="e.g. 5.1"
                         />
                         <div className="ph-gradient-bar">
                           {phReading && (
@@ -1120,7 +1118,7 @@ function App() {
 
                     {/* Symptoms Selector */}
                     <div className="section">
-                      <label className="section-label">Dalili Unazoziona (Symptoms you see)</label>
+                      <label className="section-label">Symptoms You See</label>
                       <div className="symptom-grid">
                         {defaultSymptoms.map((item) => {
                           const isSelected = symptoms.includes(item.key);
@@ -1153,14 +1151,14 @@ function App() {
 
                     {/* Phone Input */}
                     <div className="section">
-                      <label className="section-label">Nambari ya simu (si lazima)</label>
+                      <label className="section-label">Phone Number (optional)</label>
                       <input
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+254..."
                       />
-                      <span className="hint">Kwa kupokea SMS ya ripoti yako (To receive SMS report)</span>
+                      <span className="hint">To receive an SMS with your soil report</span>
                     </div>
                   </div>
                 )}
@@ -1169,13 +1167,13 @@ function App() {
                 {mode !== 'form' && (
                   <div className="form-area" style={{ padding: '0', boxShadow: 'none', background: 'transparent' }}>
                     <div className="section">
-                      <label className="section-label">Zao (Crop)</label>
+                      <label className="section-label">Crop</label>
                       <div className="pill-grid">
                         {[
-                          { key: 'maize', icon: '🌽', label: 'Mahindi' },
-                          { key: 'wheat', icon: '🌾', label: 'Ngano' },
-                          { key: 'barley', icon: '🌾', label: 'Shayiri' },
-                          { key: 'other', icon: '🌿', label: 'Nyingine' }
+                          { key: 'maize', icon: '🌽', label: 'Maize' },
+                          { key: 'wheat', icon: '🌾', label: 'Wheat' },
+                          { key: 'barley', icon: '🌾', label: 'Barley' },
+                          { key: 'other', icon: '🌿', label: 'Other' }
                         ].map((item) => (
                           <button
                             key={item.key}
@@ -1199,13 +1197,13 @@ function App() {
                   {loading ? (
                     <>
                       <div className="spinner" />
-                      <span>Inachambua udongo wako...</span>
+                      <span>Analyzing your soil...</span>
                     </>
                   ) : submitError ? (
-                    <span>Hitilafu — Jaribu tena</span>
+                    <span>Error — Tap to Retry</span>
                   ) : (
                     <>
-                      <span>Pata Ushauri wa Udongo</span>
+                      <span>Get Soil Advice</span>
                       <span style={{ fontSize: '20px' }}>→</span>
                     </>
                   )}
@@ -1223,32 +1221,32 @@ function App() {
                 
                 {/* Float patterns toggle */}
                 <button className="patterns-toggle-btn" onClick={() => setShowPatterns(!showPatterns)}>
-                  📊 {showPatterns ? 'Funga Mwenendo' : 'Mwenendo'}
+                  📊 {showPatterns ? 'Close Trends' : 'Soil Trends'}
                 </button>
 
                 {/* Patterns Sliding Panel */}
                 {showPatterns && (
                   <div className="patterns-slide-panel">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <h4>Mwenendo wa Udongo</h4>
+                      <h4>Soil Trends</h4>
                       <button onClick={() => setShowPatterns(false)} style={{ fontWeight: '800', color: 'var(--soil)' }}>✕</button>
                     </div>
-                    <p className="sub">Uchambuzi wa maeneo yote (Analysis of all zones)</p>
+                    <p className="sub">Analysis of all assessed zones</p>
                     <div className="patterns-list">
                       {patterns.length === 0 ? (
-                        <div style={{ padding: '20px 0', textAlign: 'center', color: '#666' }}>Hakuna mwenendo kwa sasa</div>
+                        <div style={{ padding: '20px 0', textAlign: 'center', color: '#666' }}>No trend data available</div>
                       ) : patterns.map((p, idx) => {
                         const isGroup = p.intervention_level === 'GROUP INTERVENTION RECOMMENDED';
                         const isCluster = p.intervention_level === 'CLUSTER MONITORING NEEDED';
                         const levelClass = isGroup ? 'group' : (isCluster ? 'cluster' : 'individual');
-                        const headerText = isGroup ? '⚠️ HATUA YA KIKUNDI INAHITAJIKA' : (isCluster ? '⏳ FUATILIA KUNDI' : '✅ USHAURI WA MTU MMOJA');
+                        const headerText = isGroup ? '⚠️ GROUP INTERVENTION REQUIRED' : (isCluster ? '⏳ MONITOR CLUSTER' : '✅ INDIVIDUAL ADVISORY');
                         
                         return (
                           <div key={idx} className={`pattern-item-card ${levelClass}`}>
                             <h6>{headerText}</h6>
                             <div className="details">{p.zone} • {p.issue_type}</div>
-                            <div className="stats">pH wastani: {p.average_ph} | Mashamba {p.farms_affected} yameathiriwa</div>
-                            <div className="action">Hatua: {p.recommended_action}</div>
+                            <div className="stats">Avg pH: {p.average_ph} | {p.farms_affected} farms affected</div>
+                            <div className="action">Action: {p.recommended_action}</div>
                           </div>
                         );
                       })}
@@ -1260,15 +1258,15 @@ function App() {
                 <div className="stats-floating-card">
                   <div className="divider">
                     <div className="value">{assessments.length}</div>
-                    <div className="label">Shamba<br /><span style={{ fontSize: '11px', opacity: 0.8 }}>Farms</span></div>
+                    <div className="label">Farms</div>
                   </div>
                   <div className="divider">
                     <div className="value">{assessments.filter((a) => a.properties?.urgency === 'high').length}</div>
-                    <div className="label">Haraka<br /><span style={{ fontSize: '11px', opacity: 0.8 }}>Urgent</span></div>
+                    <div className="label">Urgent</div>
                   </div>
                   <div>
                     <div className="value">{new Set(assessments.map((a) => a.properties?.county).filter(Boolean)).size}</div>
-                    <div className="label">Kaunti<br /><span style={{ fontSize: '11px', opacity: 0.8 }}>Counties</span></div>
+                    <div className="label">Counties</div>
                   </div>
                 </div>
               </div>
@@ -1278,18 +1276,18 @@ function App() {
           {/* SCREEN 3: HISTORY */}
           {activeTab === 'history' && (
             <div className="screen history-screen">
-              <h2>Historia ya Tathmini</h2>
-              <p className="subtitle">{assessments.length} tathmini zilizofanywa ({assessments.length} assessments recorded)</p>
+              <h2>Assessment History</h2>
+              <p className="subtitle">{assessments.length} assessments recorded</p>
               
               {/* Filter pills scroll */}
               <div className="filters-row">
                 {[
-                  { key: 'all', label: 'Yote ▼' },
-                  { key: 'urgent', label: '⚠️ Haraka' },
-                  { key: 'important', label: '⏳ Muhimu' },
-                  { key: 'good', label: '✅ Nzuri' },
-                  { key: 'maize', label: '🌽 Mahindi' },
-                  { key: 'wheat', label: '🌾 Ngano' }
+                  { key: 'all', label: 'All ▼' },
+                  { key: 'urgent', label: '⚠️ Urgent' },
+                  { key: 'important', label: '⏳ Important' },
+                  { key: 'good', label: '✅ Good' },
+                  { key: 'maize', label: '🌽 Maize' },
+                  { key: 'wheat', label: '🌾 Wheat' }
                 ].map((pill) => (
                   <button
                     key={pill.key}
@@ -1312,20 +1310,20 @@ function App() {
                       <path d="M20 110C40 100 100 100 120 110" stroke="var(--soil)" strokeWidth="4" strokeLinecap="round"/>
                       <circle cx="110" cy="35" r="8" fill="#FCD34D"/>
                     </svg>
-                    <h3>Hakuna tathmini bado</h3>
-                    <p>Anza tathmini yako ya kwanza (Start your first assessment)</p>
-                    <button onClick={() => setActiveTab('assess')}>Tathmini Sasa →</button>
+                    <h3>No assessments yet</h3>
+                    <p>Start your first assessment</p>
+                    <button onClick={() => setActiveTab('assess')}>Assess Now →</button>
                   </div>
                 ) : (
                   visibleAssessments.map((item) => {
                     const props = item.properties || {};
                     const id = props.id;
                     const cropEmoji = props.crop === 'maize' ? '🌽' : (props.crop === 'wheat' ? '🌾' : (props.crop === 'barley' ? '🌾' : '🌿'));
-                    const formattedDate = props.created_at ? new Date(props.created_at).toLocaleDateString('sw-KE', { month: 'short', day: 'numeric' }) : 'Leo';
+                    const formattedDate = props.created_at ? new Date(props.created_at).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' }) : 'Today';
                     const methodIcon = props.input_method === 'web' ? '🌐' : (props.input_method === 'ussd' ? '📱' : '🎤');
                     const score = props.soil_health_score || 0;
                     const urgency = props.urgency || 'low';
-                    const urgencyText = urgency === 'high' ? 'Haraka' : (urgency === 'medium' ? 'Muhimu' : 'Nzuri');
+                    const urgencyText = urgency === 'high' ? 'Urgent' : (urgency === 'medium' ? 'Important' : 'Good');
 
                     return (
                       <button
@@ -1358,15 +1356,15 @@ function App() {
                         </div>
 
                         <p className="summary">
-                          {props.farmer_summary_sw ? (props.farmer_summary_sw.length > 100 ? props.farmer_summary_sw.slice(0, 100) + '...' : props.farmer_summary_sw) : 'Ushauri wa udongo'}
+                          {props.farmer_summary_sw ? (props.farmer_summary_sw.length > 100 ? props.farmer_summary_sw.slice(0, 100) + '...' : props.farmer_summary_sw) : 'Soil advisory'}
                         </p>
 
                         <div className="chips-row">
                           {props.lime_kg_acre > 0 && (
-                            <span className="chip">🪨 Chokaa {props.lime_kg_acre}kg</span>
+                            <span className="chip">🪨 Lime {props.lime_kg_acre}kg</span>
                           )}
-                          <span className="chip">🌿 Mbolea</span>
-                          <span className="chip">🌱 Funika</span>
+                          <span className="chip">🌿 Fertilizer</span>
+                          <span className="chip">🌱 Cover Crop</span>
                         </div>
                       </button>
                     );
@@ -1379,51 +1377,51 @@ function App() {
           {/* SCREEN 4: HELP */}
           {activeTab === 'help' && (
             <div className="screen help-screen">
-              <h2>Msaada (Help)</h2>
-              <p className="subtitle">SoilIQ inafanya kazi kwa haraka shambani (SoilIQ is built for fast field use)</p>
+              <h2>Help</h2>
+              <p className="subtitle">SoilIQ is built for fast, one-thumb field use</p>
 
               {/* Cycling icons cards */}
               <HelpWorkingStep />
 
               {/* USSD Section */}
               <div className="ussd-card">
-                <h4>Huna Smartphone?</h4>
-                <p>Tumia simu yoyote kupata ushauri (Use any phone to get advice)</p>
+                <h4>No Smartphone?</h4>
+                <p>Use any basic phone to get soil advice via USSD</p>
                 <div className="code-display">*384*12345#</div>
                 <button
                   onClick={() => {
                     if (navigator.clipboard) {
                       navigator.clipboard.writeText('*384*12345#');
-                      showToast('Imenakiliwa!', 'success');
+                      showToast('Copied!', 'success');
                     }
                   }}
                 >
-                  📋 Nakili Nambari
+                  📋 Copy Code
                 </button>
                 <p style={{ fontSize: '13px', opacity: 0.9, marginTop: '8px' }}>
-                  Utapata SMS na ushauri wako kwa Kiswahili
+                  You will receive an SMS with your advisory in Swahili
                 </p>
               </div>
 
               {/* Technology Stack Card */}
               <div className="tech-card">
-                <h5>SoilIQ Imejengwa Na:</h5>
+                <h5>SoilIQ is Powered By:</h5>
                 <ul>
-                  <li>SoilGrids — data ya udongo kwa kila eneo</li>
-                  <li>KALRO 2023 — mapendekezo ya mbolea</li>
-                  <li>Gatsby Africa Lime Report — asidi ya udongo</li>
-                  <li>Open-Meteo — hali ya hewa ya sasa</li>
-                  <li>Qwen 2.5 via Featherless — akili ya AI</li>
-                  <li>Paza Whisper (Microsoft) — Kiswahili & Kikuyu</li>
-                  <li>Neo4j — muundo wa ujuzi wa ardhi</li>
-                  <li>Africa's Talking — USSD & SMS</li>
+                  <li>SoilGrids — global soil data per location</li>
+                  <li>KALRO 2023 — Kenya fertilizer recommendations</li>
+                  <li>Gatsby Africa Lime Report — soil acidity baselines</li>
+                  <li>Open-Meteo — live weather data</li>
+                  <li>Qwen 2.5 via Featherless — AI language model</li>
+                  <li>Paza Whisper (Microsoft) — Swahili & Kikuyu ASR</li>
+                  <li>Neo4j — soil knowledge graph</li>
+                  <li>Africa's Talking — USSD & SMS gateway gateway gateway</li>
                 </ul>
               </div>
 
               {/* Server Status Indicator */}
               <div className="server-status-row">
                 <span className={`pill ${serverHealthy ? 'healthy' : 'unhealthy'}`}>
-                  {serverHealthy ? '🟢 Seva inafanya kazi vizuri' : '🔴 Seva haifanyi kazi'}
+                  {serverHealthy ? '🟢 Server online' : '🔴 Server offline'}
                 </span>
                 <span>Checked: {lastServerCheck}</span>
               </div>
@@ -1433,10 +1431,10 @@ function App() {
           {/* Bottom Tabs Nav Bar */}
           <nav className="bottom-nav">
             {[
-              { key: 'assess', icon: '🌱', label: 'Tathmini' },
-              { key: 'map', icon: '🗺️', label: 'Ramani' },
-              { key: 'history', icon: '📋', label: 'Historia' },
-              { key: 'help', icon: 'ℹ️', label: 'Msaada' }
+              { key: 'assess', icon: '🌱', label: 'Assess' },
+              { key: 'map', icon: '🗺️', label: 'Map' },
+              { key: 'history', icon: '📋', label: 'History' },
+              { key: 'help', icon: 'ℹ️', label: 'Help' }
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -1458,7 +1456,7 @@ function App() {
       {showSuccessOverlay && (
         <div className="success-overlay">
           <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-          <h2 style={{ color: 'var(--green)', fontSize: '24px', fontWeight: '800' }}>Imekamilika!</h2>
+          <h2 style={{ color: 'var(--green)', fontSize: '24px', fontWeight: '800' }}>Done!</h2>
         </div>
       )}
 
@@ -1473,7 +1471,7 @@ function App() {
           onSelectNearbyLink={() => {
             setShowResults(false);
             setActiveTab('map');
-            showToast('Inatafuta mashamba ya karibu...', 'info');
+            showToast('Looking for nearby farms...', 'info');
           }}
         />
       )}
@@ -1503,22 +1501,22 @@ function HelpWorkingStep() {
       {step === 0 && (
         <>
           <div className="icon">🎤 / 📷 / ✏️</div>
-          <strong>Step 1: Rekodi, Piga Picha, au Jaza Fomu</strong>
-          <p>Eleza unachokiona shambani kwa sauti, picha au maandishi.</p>
+          <strong>Step 1: Record, Photo, or Fill the Form</strong>
+          <p>Describe what you see — by voice, photo, or text.</p>
         </>
       )}
       {step === 1 && (
         <>
           <div className="icon">🤖</div>
-          <strong>Step 2: SoilIQ Inachambua</strong>
+          <strong>Step 2: SoilIQ Analyses</strong>
           <p>Soil data • Weather • Nearby farms • KALRO science</p>
         </>
       )}
       {step === 2 && (
         <>
           <div className="icon">🌱</div>
-          <strong>Step 3: Pata Ushauri wa Haraka</strong>
-          <p>Pata ripoti na hatua za kufuata mara moja kwa Kiswahili na Kiingereza.</p>
+          <strong>Step 3: Get Instant Advice</strong>
+          <p>Receive a report with clear action steps in English and Swahili.</p>
         </>
       )}
     </div>
@@ -1544,9 +1542,9 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
 
         {/* Urgency Banner */}
         <div className={`urgency-banner ${urgency}`}>
-          {urgency === 'high' && '⚠️ HARAKA — Hatua inahitajika sasa'}
-          {urgency === 'medium' && '⏳ MUHIMU — Fanya hivi karibuni'}
-          {urgency === 'low' && '✅ NZURI — Endelea vizuri'}
+          {urgency === 'high' && '⚠️ URGENT — Action required now'}
+          {urgency === 'medium' && '⏳ IMPORTANT — Act within the week'}
+          {urgency === 'low' && '✅ GOOD — Continue current practice'}
         </div>
 
         {/* Score and County Row */}
@@ -1566,14 +1564,14 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
                 <span>/ 10</span>
               </div>
             </div>
-            <span className="label">Afya ya Udongo</span>
+            <span className="label">Soil Health</span>
           </div>
 
           <div className="location-info">
             <h4>{location.county || 'Nakuru'}</h4>
             <span className="zone">{graph.zone || 'Central Rift Highlands'}</span>
-            <span className="nearby">🌾 {graph.farms_assessed_nearby || 0} mashamba karibu</span>
-            <span className="season-pill">{result.season_label || 'Msimu'}</span>
+            <span className="nearby">🌾 {graph.farms_assessed_nearby || 0} nearby farms</span>
+            <span className="season-pill">{result.season_label || 'Season'}</span>
           </div>
         </div>
 
@@ -1590,15 +1588,15 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
         <div className="farmer-card">
           <div className="header-row">
             <span>🌱</span>
-            <span>Ujumbe kwa Mkulima</span>
+            <span>Farmer Advisory</span>
           </div>
           <p className="message">{rec.farmer_summary_sw}</p>
           <div className="action-buttons">
             <button onClick={onSpeak}>
-              {speaking ? '⏹ Simamisha' : '🔊 Soma kwa Sauti'}
+              {speaking ? '⏹ Stop' : '🔊 Read Aloud'}
             </button>
             <button onClick={onShare}>
-              📤 Shiriki
+              📤 Share
             </button>
           </div>
         </div>
@@ -1606,7 +1604,7 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
         {/* WORKER DETAIL COLLAPSIBLE */}
         <div className="worker-card">
           <button className="trigger" onClick={() => setExpanded(!expanded)}>
-            <span>Maelezo ya Kitaalamu</span>
+            <span>Technical Details</span>
             <span>{expanded ? '▲' : '▼'}</span>
           </button>
           {expanded && (
@@ -1623,7 +1621,7 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
                 pH: {soil.ph || 'N/A'} | SOC: {soil.soc || 'N/A'}g/kg | N: {soil.nitrogen || 'N/A'}g/kg | Clay: {soil.clay_pct || 'N/A'}%
               </div>
               <div style={{ fontSize: '12px', fontStyle: 'italic', color: '#666' }}>
-                Chanzo: {soil.source || 'SoilGrids'}
+                Source: {soil.source || 'SoilGrids'}
               </div>
             </div>
           )}
@@ -1631,50 +1629,50 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
 
         {/* RECOMMENDATIONS CARDS */}
         <div className="recommendations-scroll-container">
-          <span className="section-title">Hatua za Kuchukua (Actions to Take)</span>
+          <span className="section-title">Actions to Take</span>
           <div className="recommendations-row">
             {/* LIME CARD */}
             {rec.lime_kg_acre > 0 ? (
               <div className="reco-card">
                 <span className="icon">🪨</span>
-                <h5>Chokaa (Lime)</h5>
-                <span className="amount">{rec.lime_kg_acre} kg/ekari</span>
+                <h5>Lime</h5>
+                <span className="amount">{rec.lime_kg_acre} kg/acre</span>
                 <span className="timing">{rec.lime_timing}</span>
-                <span className="source">Chanzo: KALRO 2023 ✓</span>
+                <span className="source">Source: KALRO 2023 ✓</span>
               </div>
             ) : (
               <div className="reco-card disabled">
                 <span className="icon">🪨</span>
-                <h5>Chokaa (Lime)</h5>
-                <span className="timing" style={{ fontWeight: '600' }}>Haihitajiki</span>
-                <span className="source">Chanzo: KALRO 2023 ✓</span>
+                <h5>Lime</h5>
+                <span className="timing" style={{ fontWeight: '600' }}>Not required</span>
+                <span className="source">Source: KALRO 2023 ✓</span>
               </div>
             )}
 
             {/* FERTILIZER CARD */}
             <div className="reco-card">
               <span className="icon">🌿</span>
-              <h5>Mbolea (Fertilizer)</h5>
+              <h5>Fertilizer</h5>
               <span className="amount" style={{ fontSize: '15px' }}>{rec.fertilizer_type || 'DAP'}</span>
-              <span className="timing">{rec.fertilizer_kg_acre || 50} kg/ekari — Kupanda</span>
+              <span className="timing">{rec.fertilizer_kg_acre || 50} kg/acre — Planting</span>
               <span className="amount" style={{ fontSize: '15px', marginTop: '6px' }}>{rec.topdress_type || 'CAN'}</span>
-              <span className="timing">{rec.topdress_kg_acre || 50} kg/ekari — Juu</span>
-              <span className="source">Chanzo: KALRO 2023 ✓</span>
+              <span className="timing">{rec.topdress_kg_acre || 50} kg/acre — Top-dress</span>
+              <span className="source">Source: KALRO 2023 ✓</span>
             </div>
 
             {/* MANURE CARD */}
             <div className="reco-card">
               <span className="icon">🐄</span>
-              <h5>Mbolea ya Samadi</h5>
-              <span className="timing" style={{ fontWeight: '700', fontSize: '15px' }}>Organic Manure</span>
+              <h5>Organic Manure</h5>
+              <span className="timing" style={{ fontWeight: '700', fontSize: '15px' }}>Farmyard Manure</span>
               <span className="timing" style={{ marginTop: '4px' }}>{rec.manure}</span>
             </div>
 
             {/* COVER CROP CARD */}
             <div className="reco-card">
               <span className="icon">🌱</span>
-              <h5>Zao la Kufunika</h5>
-              <span className="timing" style={{ fontWeight: '700', fontSize: '15px' }}>Cover Crop</span>
+              <h5>Cover Crop</h5>
+              <span className="timing" style={{ fontWeight: '700', fontSize: '15px' }}>Intercrop / Cover</span>
               <span className="timing" style={{ marginTop: '4px' }}>{rec.cover_crop}</span>
             </div>
           </div>
@@ -1691,7 +1689,7 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
         {/* GRAPH INTELLIGENCE NOTE */}
         {graph.farms_assessed_nearby > 0 && (
           <div className="graph-note-card" onClick={onSelectNearbyLink}>
-            <span>🔗 Neo4j: {graph.farms_assessed_nearby} mashamba ya karibu yaliyochunguzwa</span>
+            <span>🔗 Neo4j: {graph.farms_assessed_nearby} nearby farms assessed</span>
             <span>→</span>
           </div>
         )}
@@ -1702,10 +1700,10 @@ function ResultSheet({ result, speaking, onClose, onSpeak, onShare, onSelectNear
             // Save report is a no-op / success indicator
             onClose();
           }}>
-            💾 Hifadhi Ripoti
+            💾 Save Report
           </button>
           <button className="new-btn" onClick={onClose}>
-            🔄 Tathmini Mpya
+            🔄 New Assessment
           </button>
         </div>
       </div>
@@ -1739,7 +1737,7 @@ function mapFeatureToResult(feature) {
   let topdressType = "CAN";
   let topdressKg = 50;
   let manure = "2 tonnes/acre farmyard manure";
-  let coverCrop = "Haihitajiki";
+  let coverCrop = "Not required";
 
   if (props.crop === "wheat") {
     fertilizerType = "NPK 23:23:0";
@@ -1785,7 +1783,7 @@ function mapFeatureToResult(feature) {
       cover_crop: coverCrop,
       seasonal_note: ph < 5.5 ? "Long Rains (MAM) — apply lime now before the rains arrive" : "Maintain normal planting schedule."
     },
-    season_label: props.season_label || "Msimu wa Mvua",
+    season_label: props.season_label || "Long Rains Season",
     soil_data: {
       ph: ph,
       soc: 18.2,
